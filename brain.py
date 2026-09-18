@@ -138,7 +138,7 @@ async def generate_video(prompt: str, timeout_sec: int = 300) -> str:
 # ---------- 主对话 ----------
 
 async def chat(messages: list, system_prompt: str = "") -> str:
-    """调用 Agnes 3.0 Flash 生成回复"""
+    """调用 Agnes 3.0 Flash 生成回复（messages 支持 image_url 内容块）"""
     cfg = config.load()
     msgs = []
     if system_prompt:
@@ -197,6 +197,45 @@ async def reply(text: str, history: list, system_prompt: str) -> str:
             system += f"\n（联网搜索失败：{e}，请基于已有知识回答并说明信息可能不是最新的）"
 
     return await chat(messages, system)
+
+
+async def describe_image(image_url: str, question: str, system_prompt: str) -> str:
+    """图片理解：把图片 URL 交给 3.0 多模态输入看图回答"""
+    cfg = config.load()
+    content = [
+        {"type": "image_url", "image_url": {"url": image_url}},
+        {"type": "text", "text": question or "请描述这张图片。"},
+    ]
+    return await chat(
+        [{"role": "user", "content": content}],
+        system_prompt + "\n（用户发来了一张图片，请根据图片内容自然地回复）",
+    )
+
+
+async def summarize_url(url: str) -> str:
+    """链接摘要：抓取网页正文并让模型总结"""
+    cfg = config.load()
+    try:
+        r = await client.get(url, headers={"User-Agent": "Mozilla/5.0"}, follow_redirects=True)
+        r.raise_for_status()
+    except Exception as e:
+        return f"网页打不开……（{str(e)[:80]}）"
+    ctype = r.headers.get("content-type", "")
+    if "html" not in ctype and "text" not in ctype:
+        return "这是一个文件链接，不是网页，没法总结哦。"
+    import re as _re
+    text = _re.sub(r"<script[\s\S]*?</script>|<style[\s\S]*?</style>", "", r.text)
+    text = _re.sub(r"<[^>]+>", " ", text)
+    text = _re.sub(r"\s+", " ", text).strip()[:6000]
+    if len(text) < 50:
+        return "这个网页没有抓到什么正文内容。"
+    try:
+        return await chat(
+            [{"role": "user", "content": f"请用简短的几句话总结这篇网页文章的核心内容：\n\n{text}"}],
+            "你是一个摘要助手，输出简洁的中文总结，不超过150字。",
+        )
+    except Exception as e:
+        return f"总结失败……（{str(e)[:80]}）"
 
 
 async def test_agnes() -> tuple[bool, str]:

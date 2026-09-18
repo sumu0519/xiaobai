@@ -1,4 +1,5 @@
 """QQ 机器人主程序：OneBot 11 + Agnes AI + WebUI 控制台"""
+import re
 import time
 import asyncio
 from collections import deque
@@ -7,6 +8,8 @@ from quart import request
 
 import brain
 import config
+import scheduler
+import msglog
 from webui import app
 import httpx
 
@@ -121,6 +124,17 @@ def keyword_reply(text: str) -> str | None:
     return None
 
 
+async def _send_logged(ev: Event, reply: str):
+    """发送回复并写消息日志（out）"""
+    try:
+        await bot.send(ev, reply)
+        msglog.log_message(ev.message_type,
+                           ev.group_id if ev.message_type == "group" else ev.user_id,
+                           ev.user_id, "out", reply)
+    except Exception as e:
+        print(f"[error] 发送失败: {e}")
+
+
 async def handle_admin(ev: Event, text: str) -> bool:
     """管理员指令，返回 True 表示已处理"""
     cfg = config.load()
@@ -169,16 +183,25 @@ async def handle_message(ev: Event):
     """私聊全部回复；群聊仅被 @ 时回复（可在 WebUI 关闭）"""
     cfg = config.load()
     raw = ev.get("message")
+    image_urls: list[str] = []
     if isinstance(raw, list):
         at_me = any(
             isinstance(s, dict) and s.get("type") == "at"
             and str(s.get("data", {}).get("qq")) == str(ev.self_id)
             for s in raw
         )
-        text = strip_cq("".join(
-            s.get("data", {}).get("text", "") if isinstance(s, dict) else str(s)
-            for s in raw
-        ))
+        parts = []
+        for s in raw:
+            if not isinstance(s, dict):
+                parts.append(str(s))
+                continue
+            if s.get("type") == "text":
+                parts.append(s.get("data", {}).get("text", ""))
+            elif s.get("type") == "image":
+                url = s.get("data", {}).get("url") or s.get("data", {}).get("file", "")
+                if url.startswith("http"):
+                    image_urls.append(url)
+        text = strip_cq("".join(parts))
     else:
         msg_str = str(raw)
         at_me = f"[CQ:at,qq={ev.self_id}]" in msg_str
@@ -186,6 +209,10 @@ async def handle_message(ev: Event):
 
     if not text:
         return
+
+    msglog.log_message(ev.message_type,
+                       ev.group_id if ev.message_type == "group" else ev.user_id,
+                       ev.user_id, "in", text)
 
     if ev.message_type == "group":
         if not cfg["reply_group_at"] or not at_me:
@@ -211,12 +238,37 @@ async def handle_message(ev: Event):
             print(f"[error] 关键词回复发送失败: {e}")
         return
 
+    # 链接摘要：消息含网页链接时自动总结
+    m = re.search(r"https?://[^\s\]\[]+", text)
+    if m and cfg.get("url_summary", True):
+        summary = await brain.summarize_url(m.group(0))
+        try:
+            await bot.send(ev, summary)
+        except Exception as e:
+            print(f"[error] 摘要发送失败: {e}")
+        return
+
     # 速率限制
     if not check_rate(str(ev.user_id)):
         try:
             await bot.send(ev, "消息有点太快啦，稍等一下再聊～")
         except Exception:
             pass
+        return
+
+    # 图片理解：消息带图片时让模型看图回复
+    if image_urls:
+        try:
+            reply = await brain.describe_image(
+                image_urls[0], text or "", cfg["system_prompt"]
+            )
+        except Exception as e:
+            print(f"[error] 图片理解失败: {e}")
+            reply = "图片我好像看不懂……（加载失败了）"
+            return
+        chat_id = ev.group_id if ev.message_type == "group" else ev.user_id
+        await _send_logged(ev, reply)
+        print(f"[img] {ev.message_type}_{chat_id} -> 看图回复")
         return
 
     chat_id = ev.group_id if ev.message_type == "group" else ev.user_id
@@ -232,21 +284,21 @@ async def handle_message(ev: Event):
     history.append({"role": "user", "content": text})
     history.append({"role": "assistant", "content": reply})
 
-    try:
-        await bot.send(ev, reply)
-    except Exception as e:
-        print(f"[error] 发送失败: {e}")
-        return
+    await _send_logged(ev, reply)
     print(f"[msg] {key} <- {text!r} -> {reply!r}")
+
+
+async def _main():
+    asyncio.create_task(scheduler.run_scheduler(call_action))
+    from hypercorn.asyncio import serve
+    from hypercorn.config import Config
+    hconfig = Config()
+    hconfig.bind = [f"{cfg['ws_host']}:{int(cfg['ws_port'])}"]
+    await serve(app, hconfig)
 
 
 if __name__ == "__main__":
     cfg = config.load()
-    host, port = cfg["ws_host"], int(cfg["ws_port"])
-    print(f"QQ 机器人启动：WebUI  http://{host}:{port}/")
-    print(f"NapCat 反向 WS 请指向 ws://{host}:{port}/onebot/event")
-    from hypercorn.asyncio import serve
-    from hypercorn.config import Config
-    hconfig = Config()
-    hconfig.bind = [f"{host}:{port}"]
-    asyncio.run(serve(app, hconfig))
+    print(f"QQ 机器人启动：WebUI  http://{cfg['ws_host']}:{cfg['ws_port']}/")
+    print(f"NapCat 反向 WS 请指向 ws://{cfg['ws_host']}:{cfg['ws_port']}/onebot/event")
+    asyncio.run(_main())

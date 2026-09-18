@@ -152,6 +152,31 @@
         <span>欢迎语</span>
         <input id="welcome_text" type="text">
       </label>
+      <div class="field switch-field">
+        <span>链接摘要（消息含网址时自动总结）</span>
+        <label class="switch"><input id="url_summary" type="checkbox" checked><i></i></label>
+      </div>
+      <label class="field span2">
+        <span>定时推送（每行：HH:MM=&gt;私聊:QQ号|群:群号=&gt;内容，空=禁用）</span>
+        <textarea id="scheduled_push" rows="3" placeholder="08:00=>私聊:123456=>早上好！&#10;22:00=>群:654321=>晚安~"></textarea>
+      </label>
+    </div>
+  </section>
+
+  <!-- 消息日志 -->
+  <section class="card">
+    <div class="card-head">
+      <h2>📜 消息日志</h2>
+      <div class="row-gap">
+        <div class="field switch-field inline">
+          <label class="switch"><input id="message_log_enabled" type="checkbox" checked><i></i></label>
+        </div>
+        <button class="btn ghost sm" onclick="loadMsgLog()">↻ 刷新日志</button>
+      </div>
+    </div>
+    <div class="field">
+      <span>最近收发消息（新消息在上）</span>
+      <div id="msglog" class="msglog-box">（暂无日志）</div>
     </div>
   </section>
 

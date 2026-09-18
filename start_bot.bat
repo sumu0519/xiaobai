@@ -31,7 +31,12 @@ start "QQ-Bot" /min python bot.py
 
 timeout /t 4 /nobreak >nul
 
-echo [2/2] Starting NapCat (auto login QQ %NAPCAT_QQ%) ...
+echo [2/3] Starting watchdog (auto-restart bot if it dies) ...
+start "Watchdog" /min python watchdog.py
+
+timeout /t 2 /nobreak >nul
+
+echo [3/3] Starting NapCat (auto login QQ %NAPCAT_QQ%) ...
 cd /d "%NAPCAT_DIR%"
 set NAPCAT_QQ=%NAPCAT_QQ%
 start "NapCat" cmd /c "launcher.bat"

@@ -147,6 +147,15 @@ input[type="range"]::-webkit-slider-thumb {
 
 .row-gap { display: flex; gap: 8px; align-items: center; }
 
+.msglog-box {
+  max-height: 300px; overflow-y: auto;
+  background: var(--card2); border: 1px solid var(--line);
+  border-radius: 9px; padding: 10px 12px;
+  font-size: 12.5px; line-height: 1.9; color: var(--muted);
+}
+.msglog-row .t { color: #5b6178; margin-right: 6px; }
+.msglog-row b { color: var(--accent); font-weight: 600; }
+
 /* Toast */
 #toast-box {
   position: fixed; right: 22px; bottom: 22px; z-index: 99;

@@ -7,6 +7,7 @@ const FIELDS = [
   "ws_host", "ws_port", "history_len", "history_ttl",
   "admin_qq", "rate_limit_per_min", "whitelist", "keyword_rules",
   "welcome_new_member", "welcome_text",
+  "url_summary", "scheduled_push", "message_log_enabled",
 ];
 const SECRET_FIELDS = ["agnes_api_key", "tavily_api_key", "access_token"];
 
@@ -136,6 +137,20 @@ async function fetchModels() {
   } catch (e) { toast("获取失败：" + e.message, "err"); }
 }
 
+async function loadMsgLog() {
+  try {
+    const r = await api("/api/msglog?limit=50");
+    const box = document.getElementById("msglog");
+    if (!r.messages.length) { box.textContent = "（暂无日志）"; return; }
+    box.innerHTML = r.messages.map((m) => {
+      const dir = m.direction === "in" ? "⬅ 收" : "➡ 发";
+      const who = m.chat_type === "group" ? `群${m.chat_id}` : `QQ${m.chat_id}`;
+      const text = m.content.replace(/</g, "&lt;").slice(0, 120);
+      return `<div class="msglog-row"><span class="t">${m.ts}</span> <b>${dir}</b> ${who}(${m.user_id})：${text}</div>`;
+    }).join("");
+  } catch (e) { toast("日志加载失败：" + e.message, "err"); }
+}
+
 async function refreshStatus() {
   try {
     const r = await api("/api/status");
@@ -152,5 +167,6 @@ async function refreshStatus() {
 }
 
 loadConfig();
+loadMsgLog();
 refreshStatus();
 setInterval(refreshStatus, 10000);

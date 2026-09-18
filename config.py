@@ -46,6 +46,12 @@ DEFAULTS = {
     # 群聊欢迎新人（进群事件）
     "welcome_new_member": False,
     "welcome_text": "欢迎新人进群～有问题可以 @ 我哦",
+    # 链接摘要：消息含网页链接时自动抓取并总结
+    "url_summary": True,
+    # 定时推送："HH:MM=>私聊:QQ号|群:群号=>内容"，多条换行分隔；空=禁用
+    "scheduled_push": "",
+    # 消息日志（SQLite messages.db）
+    "message_log_enabled": True,
 }
 
 _lock = threading.Lock()

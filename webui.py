@@ -5,6 +5,7 @@ from aiocqhttp import CQHttp
 
 import brain
 import config
+import msglog
 
 app = quart.Quart(__name__, template_folder="templates", static_folder="static")
 
@@ -51,6 +52,19 @@ async def api_status():
     bot = get_bot()
     qq = bot.self_id if isinstance(getattr(bot, "self_id", ""), str) else ""
     return {"ok": True, "bot_connected": bool(qq), "qq": qq}
+
+
+@app.get("/api/msglog")
+async def api_msglog():
+    """查询最近消息日志"""
+    limit = int(quart.request.args.get("limit", 100))
+    chat_id = quart.request.args.get("chat_id")
+    return {"ok": True, "messages": msglog.query(limit=limit, chat_id=chat_id)}
+
+
+@app.get("/api/stats")
+async def api_stats():
+    return {"ok": True, "stats": msglog.stats(days=7)}
 
 
 @app.get("/api/models")

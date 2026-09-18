@@ -13,4 +13,5 @@ direct.log
 __pycache__/
 *.pyc
 cache/
+messages.db
 .atomcode/
