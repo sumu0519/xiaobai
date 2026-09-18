@@ -1,0 +1,5 @@
+python-dotenv
+aiocqhttp
+quart
+httpx
+hypercorn

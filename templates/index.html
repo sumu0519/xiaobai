@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>QQ 机器人控制台</title>
+<link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+<header class="topbar">
+  <div class="brand">
+    <span class="logo">🤖</span>
+    <div>
+      <h1>QQ 机器人控制台</h1>
+      <p class="sub">NapCat · Agnes 3.0 Flash · Tavily</p>
+    </div>
+  </div>
+  <div id="status-badge" class="badge off">
+    <span class="dot"></span><span id="status-text">检测中…</span>
+  </div>
+</header>
+
+<main class="wrap">
+  <!-- AI 模型 -->
+  <section class="card">
+    <div class="card-head">
+      <h2>🧠 AI 模型</h2>
+      <button class="btn ghost sm" onclick="testAgnes()">测试连接</button>
+    </div>
+    <div class="grid">
+      <label class="field span2">
+        <span>API 地址</span>
+        <input id="agnes_base_url" type="text" placeholder="https://apihub.agnes-ai.com/v1">
+      </label>
+      <label class="field">
+        <span>模型名称 <a href="javascript:void(0)" class="fetch-models" onclick="fetchModels()">↻ 获取云端模型列表</a></span>
+        <input id="agnes_model" type="text" list="model-list" placeholder="agnes-3.0-flash">
+      </label>
+      <label class="field">
+        <span>API Key <em class="hint" id="agnes_key_masked"></em></span>
+        <input id="agnes_api_key" type="password" placeholder="留空则不修改">
+      </label>
+      <label class="field">
+        <span>温度（随机性 <b id="temp-val">0.8</b>）</span>
+        <input id="temperature" type="range" min="0" max="2" step="0.1" value="0.8"
+               oninput="document.getElementById('temp-val').textContent=this.value">
+      </label>
+      <label class="field">
+        <span>最大输出 Token</span>
+        <input id="max_tokens" type="number" min="64" max="65536" step="64">
+      </label>
+      <label class="field span3">
+        <span>人设提示词（System Prompt）</span>
+        <textarea id="system_prompt" rows="4"></textarea>
+      </label>
+      <label class="field">
+        <span>回复最大字数</span>
+        <input id="max_reply_chars" type="number" min="50" max="2000" step="50">
+      </label>
+      <div class="field switch-field">
+        <span>私聊自动回复</span>
+        <label class="switch"><input id="reply_private" type="checkbox" checked><i></i></label>
+      </div>
+      <div class="field switch-field">
+        <span>群里被 @ 才回复</span>
+        <label class="switch"><input id="reply_group_at" type="checkbox" checked><i></i></label>
+      </div>
+    </div>
+  </section>
+
+  <!-- 图像与视频生成 -->
+  <section class="card">
+    <div class="card-head">
+      <h2>🎨 图像 / 视频生成（多模型）</h2>
+      <div class="row-gap">
+        <button class="btn ghost sm" onclick="testImage()">测试图像模型</button>
+        <button class="btn ghost sm" onclick="testVideo()">测试视频模型</button>
+      </div>
+    </div>
+    <div class="grid">
+      <div class="field switch-field">
+        <span>启用图像生成（消息含“画一张…”时触发）</span>
+        <label class="switch"><input id="image_enabled" type="checkbox" checked><i></i></label>
+      </div>
+      <label class="field span2">
+        <span>图像模型名称（下拉选择）</span>
+        <input id="image_model" type="text" list="model-list" placeholder="agnes-image-2.1-flash">
+      </label>
+      <div class="field switch-field">
+        <span>启用视频生成（消息含“生成视频…”时触发）</span>
+        <label class="switch"><input id="video_enabled" type="checkbox" checked><i></i></label>
+      </div>
+      <label class="field span2">
+        <span>视频模型名称（下拉选择）</span>
+        <input id="video_model" type="text" list="model-list" placeholder="agnes-video-v2.0">
+      </label>
+    </div>
+  </section>
+
+  <!-- 联网搜索 -->
+  <section class="card">
+    <div class="card-head">
+      <h2>🌐 联网搜索（Tavily）</h2>
+      <div class="row-gap">
+        <div class="field switch-field inline">
+          <label class="switch"><input id="search_enabled" type="checkbox" checked><i></i></label>
+        </div>
+        <button class="btn ghost sm" onclick="testTavily()">测试连接</button>
+      </div>
+    </div>
+    <div class="grid">
+      <label class="field span2">
+        <span>Tavily API Key <em class="hint" id="tavily_key_masked"></em></span>
+        <input id="tavily_api_key" type="password" placeholder="留空则不修改">
+      </label>
+      <label class="field">
+        <span>搜索结果条数</span>
+        <input id="search_max_results" type="number" min="1" max="10">
+      </label>
+      <label class="field span3">
+        <span>触发搜索的关键词（正则，用 <code>|</code> 分隔）</span>
+        <input id="search_hints" type="text">
+      </label>
+    </div>
+  </section>
+
+  <!-- 管理与安全 -->
+  <section class="card">
+    <div class="card-head"><h2>🛡️ 管理与安全</h2></div>
+    <div class="grid">
+      <label class="field">
+        <span>管理员 QQ（逗号分隔，可发"状态/清空记忆"指令）</span>
+        <input id="admin_qq" type="text" placeholder="123456,654321">
+      </label>
+      <label class="field">
+        <span>每人每分钟回复上限（0=不限）</span>
+        <input id="rate_limit_per_min" type="number" min="0" max="120">
+      </label>
+      <label class="field">
+        <span>白名单 QQ（逗号分隔，空=所有人可用）</span>
+        <input id="whitelist" type="text" placeholder="留空不限制">
+      </label>
+      <label class="field span3">
+        <span>关键词自动回复（每行一条：关键词=&gt;回复内容）</span>
+        <textarea id="keyword_rules" rows="3" placeholder="你好=>你好呀~&#10;在吗=>在的在的"></textarea>
+      </label>
+      <div class="field switch-field">
+        <span>新人进群自动欢迎</span>
+        <label class="switch"><input id="welcome_new_member" type="checkbox"><i></i></label>
+      </div>
+      <label class="field span2">
+        <span>欢迎语</span>
+        <input id="welcome_text" type="text">
+      </label>
+    </div>
+  </section>
+
+  <!-- 连接与记忆 -->
+  <section class="card">
+    <div class="card-head"><h2>🔗 连接与记忆</h2></div>
+    <div class="grid">
+      <label class="field">
+        <span>监听地址</span>
+        <input id="ws_host" type="text">
+      </label>
+      <label class="field">
+        <span>监听端口</span>
+        <input id="ws_port" type="number" min="1" max="65535">
+      </label>
+      <label class="field">
+        <span>Access Token <em class="hint" id="token_masked"></em></span>
+        <input id="access_token" type="password" placeholder="留空则不修改">
+      </label>
+      <label class="field">
+        <span>上下文条数</span>
+        <input id="history_len" type="number" min="0" max="50">
+      </label>
+      <label class="field">
+        <span>上下文有效期（秒）</span>
+        <input id="history_ttl" type="number" min="60" max="86400" step="60">
+      </label>
+      <div class="field">
+        <span>发送测试消息给 QQ</span>
+        <div class="row-gap">
+          <input id="test-qq" type="text" placeholder="输入 QQ 号">
+          <button class="btn ghost sm" onclick="testSend()">发送</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <div class="actions">
+    <button class="btn primary" onclick="saveConfig()">💾 保存配置</button>
+    <button class="btn danger ghost" onclick="resetConfig()">↺ 恢复默认</button>
+    <span class="note">保存后立即生效，无需重启（NapCat 连接参数除外）</span>
+  </div>
+</main>
+
+<datalist id="model-list"></datalist>
+<div id="toast-box"></div>
+<script src="/static/app.js"></script>
+</body>
+</html>

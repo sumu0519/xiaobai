@@ -1,0 +1,16 @@
+# 密钥与本地配置（含 API Key，禁止上传）
+config.json
+.env
+
+# NapCat（体积大且 config 含 token / 登录凭证）
+NapCat/
+
+# 运行日志与缓存
+boot.log
+napcat_run.log
+start_test.log
+direct.log
+__pycache__/
+*.pyc
+cache/
+.atomcode/
