@@ -1,0 +1,33 @@
+{
+  "network": {
+    "httpServers": [
+      {
+        "name": "bot-http-api",
+        "enable": true,
+        "port": 8081,
+        "host": "127.0.0.1",
+        "enableCors": false,
+        "enableWebsocket": false,
+        "messagePostFormat": "array",
+        "token": "",
+        "debug": false
+      }
+    ],
+    "httpClients": [
+      {
+        "name": "bot-event-report",
+        "enable": true,
+        "url": "http://127.0.0.1:8080/onebot/event",
+        "messagePostFormat": "array",
+        "reportSelfMessage": false,
+        "token": "",
+        "debug": false
+      }
+    ],
+    "websocketServers": [],
+    "websocketClients": []
+  },
+  "musicSignUrl": "",
+  "enableLocalFile2Url": false,
+  "parseMultMsg": false
+}
