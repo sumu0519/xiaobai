@@ -279,6 +279,7 @@ async def handle_message(ev: Event):
         reply = await brain.reply(text, list(history), cfg["system_prompt"])
     except Exception as e:
         print(f"[error] LLM 调用失败: {e}")
+        await _send_logged(ev, "……（我刚才卡了一下，再发一遍？）")
         return
 
     history.append({"role": "user", "content": text})
