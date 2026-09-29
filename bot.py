@@ -124,9 +124,25 @@ def keyword_reply(text: str) -> str | None:
     return None
 
 
-async def _send_logged(ev: Event, reply: str):
-    """发送回复并写消息日志（out）"""
+async def _member_names(group_id, qids: list[str]) -> list[str]:
+    """尽力获取群成员昵称，用于 prompt 语境"""
+    names = []
+    for q in qids:
+        try:
+            info = await call_action("get_group_member_info",
+                                     group_id=int(group_id), user_id=int(q), no_cache=True)
+            names.append(f"{info.get('card') or info.get('nickname') or '成员'}({q})")
+        except Exception:
+            names.append(f"QQ{q}")
+    return names
+
+
+async def _send_logged(ev: Event, reply, at_list: list[str] | None = None):
+    """发送回复并写消息日志（out）；at_list 非空时在开头 @ 这些人"""
     try:
+        if at_list:
+            prefix = "".join(f"[CQ:at,qq={q}] " for q in at_list)
+            reply = prefix + reply
         await bot.send(ev, reply)
         msglog.log_message(ev.message_type,
                            ev.group_id if ev.message_type == "group" else ev.user_id,
@@ -184,6 +200,7 @@ async def handle_message(ev: Event):
     cfg = config.load()
     raw = ev.get("message")
     image_urls: list[str] = []
+    at_others: list[str] = []  # 消息里 @ 的其他人（非小号自己）
     if isinstance(raw, list):
         at_me = any(
             isinstance(s, dict) and s.get("type") == "at"
@@ -201,6 +218,10 @@ async def handle_message(ev: Event):
                 url = s.get("data", {}).get("url") or s.get("data", {}).get("file", "")
                 if url.startswith("http"):
                     image_urls.append(url)
+            elif s.get("type") == "at":
+                q = str(s.get("data", {}).get("qq", ""))
+                if q and q != str(ev.self_id) and q != "all":
+                    at_others.append(q)
         text = strip_cq("".join(parts))
     else:
         msg_str = str(raw)
@@ -275,8 +296,15 @@ async def handle_message(ev: Event):
     key = f"{ev.message_type}_{chat_id}"
     history = get_history(key)
 
+    # 群聊里 @ 了别人：获取昵称并注入语境，让 AI 知道在跟谁说话
+    prompt_text = text
+    if ev.message_type == "group" and at_others:
+        names = await _member_names(ev.group_id, at_others)
+        if names:
+            prompt_text = f"（你在群里被 @，这条消息同时 @ 了：{', '.join(names)}）\n{text}"
+
     try:
-        reply = await brain.reply(text, list(history), cfg["system_prompt"])
+        reply = await brain.reply(prompt_text, list(history), cfg["system_prompt"])
     except Exception as e:
         print(f"[error] LLM 调用失败: {e}")
         await _send_logged(ev, "……（我刚才卡了一下，再发一遍？）")
@@ -285,7 +313,7 @@ async def handle_message(ev: Event):
     history.append({"role": "user", "content": text})
     history.append({"role": "assistant", "content": reply})
 
-    await _send_logged(ev, reply)
+    await _send_logged(ev, reply, at_others if ev.message_type == "group" else None)
     print(f"[msg] {key} <- {text!r} -> {reply!r}")
 
 
