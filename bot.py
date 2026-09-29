@@ -137,12 +137,11 @@ async def _member_names(group_id, qids: list[str]) -> list[str]:
     return names
 
 
-async def _send_logged(ev: Event, reply, at_list: list[str] | None = None):
-    """发送回复并写消息日志（out）；at_list 非空时在开头 @ 这些人"""
+async def _send_logged(ev: Event, reply, reply_to=None):
+    """发送回复并写消息日志（out）；reply_to 传消息 ID 时以引用回复形式发送"""
     try:
-        if at_list:
-            prefix = "".join(f"[CQ:at,qq={q}] " for q in at_list)
-            reply = prefix + reply
+        if reply_to:
+            reply = f"[CQ:reply,id={reply_to}]" + reply
         await bot.send(ev, reply)
         msglog.log_message(ev.message_type,
                            ev.group_id if ev.message_type == "group" else ev.user_id,
@@ -313,7 +312,9 @@ async def handle_message(ev: Event):
     history.append({"role": "user", "content": text})
     history.append({"role": "assistant", "content": reply})
 
-    await _send_logged(ev, reply, at_others if ev.message_type == "group" else None)
+    # 群聊以引用回复形式发送（不 @ 任何人）
+    await _send_logged(ev, reply,
+                       reply_to=ev.get("message_id") if ev.message_type == "group" else None)
     print(f"[msg] {key} <- {text!r} -> {reply!r}")
 
 
