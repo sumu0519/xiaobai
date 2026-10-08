@@ -18,6 +18,8 @@ DEFAULTS = {
     # 图像生成模型（agnes-image-2.1-flash）
     "image_enabled": True,
     "image_model": "agnes-image-2.1-flash",
+    # 画图追问：生图后 TTL 秒内的后续消息视为调整要求，合并重新生图（0=关闭）
+    "image_followup_ttl": 300,
     # 视频生成模型（agnes-video-v2.0，异步任务）
     "video_enabled": True,
     "video_model": "agnes-video-v2.0",
@@ -52,6 +54,12 @@ DEFAULTS = {
     "scheduled_push": "",
     # 消息日志（SQLite messages.db）
     "message_log_enabled": True,
+    # 群聊技能路由（@小白 + 指令类玩法），总开关
+    "skills_enabled": True,
+    # 吐槽（帮骂）技能触发词正则：含指使句式（帮我骂…）与对骂句式（对骂/互怼…）
+    "roast_words": r"帮我(骂|怼|喷|损|整|教育|吐槽|输出|收拾|拳)|给我(骂|怼|喷|损|整|教育|输出|收拾|拳)|(骂|怼|喷|损|吐槽)(一?下|他)|对骂|互怼|互喷|对喷|对线|battle",
+    # 吐槽技能风格指令
+    "roast_prompt": "（现在是损友互怼玩梗模式：用一句网络梗式的阴阳怪气调侃对方，口语化、简短好笑，像好朋友之间开玩笑。如果指令是「对骂/互怼」类，你就是对骂的一方，要主动出击怼对方，不能回避或劝架。绝对不能出现真正的辱骂、脏话、人身攻击、歧视或威胁内容，只做无伤大雅的调侃。）",
 }
 
 _lock = threading.Lock()

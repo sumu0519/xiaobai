@@ -4,7 +4,7 @@ import asyncio
 import httpx
 import config
 
-client = httpx.AsyncClient(timeout=60)
+client = httpx.AsyncClient(timeout=30)
 # 视频生成是异步任务，轮询专用客户端（超时要长）
 video_client = httpx.AsyncClient(timeout=30)
 
@@ -45,7 +45,11 @@ def needs_search(text: str) -> bool:
 # ---------- 图像生成 ----------
 
 IMG_TRIGGERS = re.compile(
-    r"画(一|一張|一张|幅|个|张)?|画图|绘图|生成(一)?张|来(一)?张|画：|画:|image:", re.I
+    r"(?<![漫名板油国连动人物字])画(一|一張|一张|幅|个|张)?|画图|绘图|"
+    r"生成(一)?[张个幅]|来(一)?[张个幅]|"
+    r"(生成|来|画|做|整|弄|换)(一)?[张个]?(头像|表情包|壁纸|插画|漫画|配图)|"
+    r"画：|画:|image:",
+    re.I,
 )
 
 
@@ -138,26 +142,35 @@ async def generate_video(prompt: str, timeout_sec: int = 300) -> str:
 # ---------- 主对话 ----------
 
 async def chat(messages: list, system_prompt: str = "") -> str:
-    """调用 Agnes 3.0 Flash 生成回复（messages 支持 image_url 内容块）"""
+    """调用 Agnes 3.0 Flash 生成回复（messages 支持 image_url 内容块），失败重试 1 次"""
     cfg = config.load()
     msgs = []
     if system_prompt:
         msgs.append({"role": "system", "content": system_prompt})
     msgs.extend(messages)
 
-    resp = await client.post(
-        f"{cfg['agnes_base_url']}/chat/completions",
-        headers=_auth(cfg),
-        json={
-            "model": cfg["agnes_model"],
-            "messages": msgs,
-            "temperature": 0.8,
-            "max_tokens": 1024,
-        },
-    )
-    resp.raise_for_status()
-    content = resp.json()["choices"][0]["message"]["content"].strip()
-    return content[: int(cfg["max_reply_chars"])]
+    payload = {
+        "model": cfg["agnes_model"],
+        "messages": msgs,
+        "temperature": 0.8,
+        "max_tokens": 1024,
+    }
+    last_err: Exception | None = None
+    for attempt in range(2):
+        if attempt:
+            await asyncio.sleep(1.5)  # 指数退避：第 2 次前等 1.5s
+        try:
+            resp = await client.post(
+                f"{cfg['agnes_base_url']}/chat/completions",
+                headers=_auth(cfg),
+                json=payload,
+            )
+            resp.raise_for_status()
+            content = resp.json()["choices"][0]["message"]["content"].strip()
+            return content[: int(cfg["max_reply_chars"])]
+        except (httpx.HTTPError, KeyError, IndexError) as e:
+            last_err = e
+    raise last_err
 
 
 async def reply(text: str, history: list, system_prompt: str) -> str:
@@ -209,6 +222,20 @@ async def describe_image(image_url: str, question: str, system_prompt: str) -> s
     return await chat(
         [{"role": "user", "content": content}],
         system_prompt + "\n（用户发来了一张图片，请根据图片内容自然地回复）",
+    )
+
+
+async def chat_with_image(image_url: str, text: str, history: list, system_prompt: str) -> str:
+    """看图追问：用户本轮无图，但 TTL 内发过图——把那张图附进本轮消息继续对话"""
+    cfg = config.load()
+    content = [
+        {"type": "image_url", "image_url": {"url": image_url}},
+        {"type": "text", "text": text},
+    ]
+    msgs = list(history) + [{"role": "user", "content": content}]
+    return await chat(
+        msgs,
+        system_prompt + "\n（用户刚才发过一张图片，本轮消息是围绕它继续聊，请结合图片内容回答）",
     )
 
 
